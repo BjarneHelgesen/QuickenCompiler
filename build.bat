@@ -15,7 +15,18 @@ if not exist dist mkdir dist
 
 REM Build QuickenCL.exe
 echo Building QuickenCL.exe...
-python -m nuitka --standalone --onefile --follow-imports --prefer-source-code --output-dir=dist -o QuickenCL.exe QuickenCL.py
+python -m nuitka ^
+    --standalone ^
+    --lto=yes ^
+    --python-flag=no_site ^
+    --python-flag=no_docstrings ^
+    --follow-imports ^
+    --prefer-source-code ^
+    --noinclude-pytest-mode=nofollow ^
+    --noinclude-setuptools-mode=nofollow ^
+    --output-dir=dist ^
+    -o QuickenCL.exe ^
+    QuickenCL.py
 
 if errorlevel 1 (
     echo Build failed for QuickenCL.exe
@@ -23,4 +34,4 @@ if errorlevel 1 (
 )
 
 echo.
-echo Build complete! Executable is in dist\QuickenCL.exe
+echo Build complete! Executable is in dist\QuickenCL.dist\QuickenCL.exe

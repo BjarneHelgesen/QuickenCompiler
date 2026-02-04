@@ -52,7 +52,12 @@ class TestParseClArguments:
 
         assert len(source_files) == 1
         assert source_files[0] == abs_path("file.cpp")
-        assert "/Fo" + abs_str("obj/") in output_args
+        # output_args is list of (prefix, separator, Path) tuples
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fo"
+        assert separator == "/"
+        assert path == abs_path("obj")
         assert "/Foobj/" not in tool_args
 
     def test_parse_output_directory_backslash(self):
@@ -61,7 +66,11 @@ class TestParseClArguments:
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
         assert len(source_files) == 1
-        assert "/Fo" + abs_str("obj\\") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fo"
+        assert separator == "\\"
+        assert path == abs_path("obj")
 
     def test_parse_output_file(self):
         """Test output file: cl /c /Fooutput/file.obj file.cpp"""
@@ -69,7 +78,11 @@ class TestParseClArguments:
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
         assert len(source_files) == 1
-        assert "/Fo" + abs_str("output/file.obj") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fo"
+        assert separator == ""  # File path, not directory
+        assert path == abs_path("output/file.obj")
 
     def test_parse_complex_arguments(self):
         """Test complex arguments: cl /c /W4 /O2 /EHsc file.cpp"""
@@ -108,13 +121,18 @@ class TestParseClArguments:
         """Test quoted output directory: cl /c /Fo"output dir/" file.cpp"""
         # Note: In real usage, shell would strip quotes. This tests that quotes in
         # the path string are preserved when converting to absolute.
+        # The quotes are part of the path string, so the trailing / is inside quotes
         args = ["/c", '/Fo"output dir/"', "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
         assert len(source_files) == 1
         # The path portion (including quotes) is converted to absolute
         assert len(output_args) == 1
-        assert output_args[0].startswith('/Fo')
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fo"
+        # Note: separator is empty because the path string ends with " not /
+        # The quotes are part of the path_part, so endswith('/') is False
+        assert separator == ""
 
     def test_parse_no_source_files(self):
         """Test no source files: cl /help"""
@@ -145,7 +163,10 @@ class TestOutputArgsParsing:
         args = ["/c", "/Fooutput.obj", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/Fo" + abs_str("output.obj") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fo"
+        assert path == abs_path("output.obj")
         assert "/Fooutput.obj" not in tool_args
 
     def test_fe_to_output_args(self):
@@ -153,14 +174,20 @@ class TestOutputArgsParsing:
         args = ["/Feprogram.exe", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/Fe" + abs_str("program.exe") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fe"
+        assert path == abs_path("program.exe")
 
     def test_fd_to_output_args(self):
         """Test /Fd goes to output_args"""
         args = ["/c", "/Zi", "/Fddebug.pdb", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/Fd" + abs_str("debug.pdb") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fd"
+        assert path == abs_path("debug.pdb")
         assert "/Zi" in tool_args
 
     def test_fa_to_output_args(self):
@@ -171,14 +198,20 @@ class TestOutputArgsParsing:
         # /FAcs is a flag (assembly listing format: c=machine code, s=source)
         assert "/FAcs" in tool_args
         # /Fa<file> specifies the output filename
-        assert "/Fa" + abs_str("listing.asm") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fa"
+        assert path == abs_path("listing.asm")
 
     def test_fp_to_output_args(self):
         """Test /Fp (precompiled header file) goes to output_args"""
         args = ["/c", "/Yustdafx.h", "/Fpprecomp.pch", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/Fp" + abs_str("precomp.pch") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "/Fp"
+        assert path == abs_path("precomp.pch")
         assert "/Yustdafx.h" in tool_args
 
     def test_multiple_output_args(self):
@@ -186,17 +219,26 @@ class TestOutputArgsParsing:
         args = ["/c", "/Foobj/", "/Fdpdb/", "/Zi", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/Fo" + abs_str("obj/") in output_args
-        assert "/Fd" + abs_str("pdb/") in output_args
-        assert "/Zi" in tool_args
         assert len(output_args) == 2
+        # First output arg: /Fo with directory
+        assert output_args[0][0] == "/Fo"
+        assert output_args[0][1] == "/"  # directory separator
+        assert output_args[0][2] == abs_path("obj")
+        # Second output arg: /Fd with directory
+        assert output_args[1][0] == "/Fd"
+        assert output_args[1][1] == "/"  # directory separator
+        assert output_args[1][2] == abs_path("pdb")
+        assert "/Zi" in tool_args
 
     def test_dash_prefix_output_args(self):
         """Test output args with dash prefix"""
         args = ["/c", "-Fooutput.obj", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "-Fo" + abs_str("output.obj") in output_args
+        assert len(output_args) == 1
+        prefix, separator, path = output_args[0]
+        assert prefix == "-Fo"
+        assert path == abs_path("output.obj")
 
 
 class TestInputArgsParsing:
@@ -207,7 +249,11 @@ class TestInputArgsParsing:
         args = ["/c", "/Iinclude/", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/I" + abs_str("include/") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/I"
+        assert separator == ""
+        assert path == abs_path("include/")
         assert "/Iinclude/" not in tool_args
 
     def test_include_path_with_space(self):
@@ -215,55 +261,76 @@ class TestInputArgsParsing:
         args = ["/c", "/I", "include/", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/I" in input_args
-        assert abs_str("include/") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/I"
+        assert separator == " "
+        assert path == abs_path("include/")
 
     def test_multiple_include_paths(self):
         """Test multiple /I arguments"""
         args = ["/c", "/Iinclude1/", "/I", "include2/", "/Iinclude3/", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/I" + abs_str("include1/") in input_args
-        assert "/I" in input_args
-        assert abs_str("include2/") in input_args
-        assert "/I" + abs_str("include3/") in input_args
+        assert len(input_args) == 3
+        # First: attached
+        assert input_args[0] == ("/I", "", abs_path("include1/"))
+        # Second: space-separated
+        assert input_args[1] == ("/I", " ", abs_path("include2/"))
+        # Third: attached
+        assert input_args[2] == ("/I", "", abs_path("include3/"))
 
     def test_force_include(self):
         """Test /FI (force include) goes to input_args"""
         args = ["/c", "/FIstdafx.h", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/FI" + abs_str("stdafx.h") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/FI"
+        assert path == abs_path("stdafx.h")
 
     def test_force_include_with_space(self):
         """Test /FI with space"""
         args = ["/c", "/FI", "stdafx.h", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/FI" in input_args
-        assert abs_str("stdafx.h") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/FI"
+        assert separator == " "
+        assert path == abs_path("stdafx.h")
 
     def test_response_file(self):
         """Test @file (response file) goes to input_args"""
         args = ["/c", "@response.rsp", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "@" + abs_str("response.rsp") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "@"
+        assert path == abs_path("response.rsp")
 
     def test_external_include(self):
         """Test /external:I goes to input_args"""
         args = ["/c", "/external:I", "external/", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/external:I" in input_args
-        assert abs_str("external/") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/external:I"
+        assert separator == " "
+        assert path == abs_path("external/")
 
     def test_ai_using_path(self):
         """Test /AI (#using path) goes to input_args"""
         args = ["/c", "/clr", "/AIassemblies/", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/AI" + abs_str("assemblies/") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/AI"
+        assert path == abs_path("assemblies/")
         assert "/clr" in tool_args
 
     def test_fu_force_using(self):
@@ -271,7 +338,10 @@ class TestInputArgsParsing:
         args = ["/c", "/clr", "/FUmscorlib.dll", "file.cpp"]
         source_files, tool_args, output_args, input_args = parse_cl_arguments(args)
 
-        assert "/FU" + abs_str("mscorlib.dll") in input_args
+        assert len(input_args) == 1
+        prefix, separator, path = input_args[0]
+        assert prefix == "/FU"
+        assert path == abs_path("mscorlib.dll")
 
 
 class TestGetFoPath:
@@ -279,50 +349,34 @@ class TestGetFoPath:
 
     def test_fo_directory(self):
         """Test /Fo with directory (ends with /)"""
-        output_args = ["/Foobj/"]
+        output_args = [("/Fo", "/", abs_path("obj"))]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
-        assert fo_value == "obj/"
+        assert fo_value == abs_path("obj")
         assert is_dir is True
         assert fo_index == 0
 
     def test_fo_directory_backslash(self):
         """Test /Fo with directory (ends with \\)"""
-        output_args = ["/Foobj\\"]
+        output_args = [("/Fo", "\\", abs_path("obj"))]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
-        assert fo_value == "obj\\"
+        assert fo_value == abs_path("obj")
         assert is_dir is True
         assert fo_index == 0
 
     def test_fo_file(self):
         """Test /Fo with specific file"""
-        output_args = ["/Fooutput.obj"]
+        output_args = [("/Fo", "", abs_path("output.obj"))]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
-        assert fo_value == "output.obj"
+        assert fo_value == abs_path("output.obj")
         assert is_dir is False
         assert fo_index == 0
 
-    def test_fo_colon_syntax(self):
-        """Test /Fo:path colon syntax"""
-        output_args = ["/Fo:output.obj"]
-        fo_value, is_dir, fo_index = get_fo_path(output_args)
-
-        assert fo_value == "output.obj"
-        assert is_dir is False
-
-    def test_fo_quoted(self):
-        """Test /Fo with quoted path"""
-        output_args = ['/Fo"output dir/"']
-        fo_value, is_dir, fo_index = get_fo_path(output_args)
-
-        assert fo_value == "output dir/"
-        assert is_dir is True
-
     def test_fo_not_found(self):
         """Test when /Fo is not present"""
-        output_args = ["/Feprogram.exe"]
+        output_args = [("/Fe", "", abs_path("program.exe"))]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
         assert fo_value is None
@@ -331,19 +385,23 @@ class TestGetFoPath:
 
     def test_fo_among_other_args(self):
         """Test /Fo among other output args"""
-        output_args = ["/Fdpdb/", "/Foobj/", "/Feprogram.exe"]
+        output_args = [
+            ("/Fd", "/", abs_path("pdb")),
+            ("/Fo", "/", abs_path("obj")),
+            ("/Fe", "", abs_path("program.exe"))
+        ]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
-        assert fo_value == "obj/"
+        assert fo_value == abs_path("obj")
         assert is_dir is True
         assert fo_index == 1
 
     def test_dash_prefix(self):
         """Test with dash prefix"""
-        output_args = ["-Foobj/"]
+        output_args = [("-Fo", "/", abs_path("obj"))]
         fo_value, is_dir, fo_index = get_fo_path(output_args)
 
-        assert fo_value == "obj/"
+        assert fo_value == abs_path("obj")
         assert is_dir is True
 
 

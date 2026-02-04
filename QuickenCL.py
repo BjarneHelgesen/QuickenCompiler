@@ -40,11 +40,6 @@ EXTERNAL_I_PREFIXES = ('/external:I', '-external:I')
 SOURCE_EXTENSIONS = {'.cpp', '.cxx', '.cc', '.c', '.c++'}
 
 
-def to_absolute(path_str):
-    """Convert a path string to an absolute path string."""
-    return str(Path(path_str).resolve())
-
-
 def parse_cl_arguments(args):
     """
     Parse cl.exe command-line arguments into categories for Quicken.
@@ -52,8 +47,13 @@ def parse_cl_arguments(args):
     Categories:
     - source_files: Files to compile (.cpp, .c, etc.)
     - tool_args: General compilation flags (part of cache key)
-    - output_args: Output path arguments (NOT part of cache key)
-    - input_args: Input path arguments (part of cache key)
+    - output_args: Output path arguments as PathArg tuples (NOT part of cache key)
+    - input_args: Input path arguments as PathArg tuples (part of cache key)
+
+    PathArg format: Tuple[str, str, Path] = (prefix, separator, path)
+    - prefix: The option prefix (e.g., '/Fo', '/I')
+    - separator: '' for attached args, ' ' for space-separated args
+    - path: The path as a Path object
 
     Args:
         args: List of command-line arguments (excluding program name)
@@ -63,8 +63,8 @@ def parse_cl_arguments(args):
     """
     source_files = []
     tool_args = []
-    output_args = []
-    input_args = []
+    output_args = []  # List of (prefix, separator, Path) tuples
+    input_args = []   # List of (prefix, separator, Path) tuples
 
     i = 0
     while i < len(args):
@@ -84,9 +84,16 @@ def parse_cl_arguments(args):
             if arg.startswith(prefix):
                 path_part = arg[len(prefix):]
                 if path_part:
-                    output_args.append(prefix + to_absolute(path_part))
+                    # Use trailing slash as separator to indicate directory path
+                    # This preserves the info that cl.exe should auto-name the output
+                    if path_part.endswith('/') or path_part.endswith('\\'):
+                        separator = path_part[-1]
+                        output_args.append((prefix, separator, Path(path_part).resolve()))
+                    else:
+                        output_args.append((prefix, '', Path(path_part).resolve()))
                 else:
-                    output_args.append(arg)
+                    # No path provided - pass through to cl.exe (error condition)
+                    tool_args.append(arg)
                 matched_output = True
                 break
         if matched_output:
@@ -98,16 +105,15 @@ def parse_cl_arguments(args):
         for prefix in INPUT_PREFIXES_WITH_SPACE:
             if arg == prefix:
                 # Bare prefix, next arg is the path
-                input_args.append(arg)
                 if i + 1 < len(args):
                     i += 1
-                    input_args.append(to_absolute(args[i]))
+                    input_args.append((prefix, ' ', Path(args[i]).resolve()))
                 matched_input = True
                 break
             if arg.startswith(prefix) and len(arg) > len(prefix):
                 # Prefix with attached argument
                 path_part = arg[len(prefix):]
-                input_args.append(prefix + to_absolute(path_part))
+                input_args.append((prefix, '', Path(path_part).resolve()))
                 matched_input = True
                 break
         if matched_input:
@@ -117,15 +123,14 @@ def parse_cl_arguments(args):
         # Check for /external:I (space before path)
         for prefix in EXTERNAL_I_PREFIXES:
             if arg == prefix:
-                input_args.append(arg)
                 if i + 1 < len(args):
                     i += 1
-                    input_args.append(to_absolute(args[i]))
+                    input_args.append((prefix, ' ', Path(args[i]).resolve()))
                 matched_input = True
                 break
             if arg.startswith(prefix) and len(arg) > len(prefix):
                 path_part = arg[len(prefix):]
-                input_args.append(prefix + to_absolute(path_part))
+                input_args.append((prefix, '', Path(path_part).resolve()))
                 matched_input = True
                 break
         if matched_input:
@@ -135,7 +140,7 @@ def parse_cl_arguments(args):
         # Check for response file (@file) - treat as input dependency
         if arg.startswith('@'):
             response_file = arg[1:]
-            input_args.append('@' + to_absolute(response_file))
+            input_args.append(('@', '', Path(response_file).resolve()))
             i += 1
             continue
 
@@ -182,23 +187,20 @@ def run_cl_directly(args):
 def get_fo_path(output_args):
     """Extract /Fo path information from output_args.
 
+    Args:
+        output_args: List of PathArg tuples (prefix, separator, path)
+
     Returns:
-        Tuple of (fo_value, is_directory, fo_index)
-        - fo_value: The path after /Fo (None if not found)
-        - is_directory: True if path ends with / or \\ (directory, not file)
+        Tuple of (fo_path, is_directory, fo_index)
+        - fo_path: The Path object (None if not found)
+        - is_directory: True if separator indicates directory (/ or \\)
         - fo_index: Index in output_args (-1 if not found)
     """
-    for idx, arg in enumerate(output_args):
-        if arg.startswith('/Fo') or arg.startswith('-Fo'):
-            fo_path = arg[3:]
-            # Handle colon syntax /Fo:path (newer MSVC)
-            if fo_path.startswith(':'):
-                fo_path = fo_path[1:]
-            # Remove quotes if present
-            if fo_path.startswith('"') and fo_path.endswith('"'):
-                fo_path = fo_path[1:-1]
-            is_dir = fo_path.endswith('/') or fo_path.endswith('\\')
-            return fo_path, is_dir, idx
+    for idx, (prefix, separator, path) in enumerate(output_args):
+        if prefix in ('/Fo', '-Fo'):
+            # separator of '/' or '\\' indicates directory path
+            is_dir = separator in ('/', '\\')
+            return path, is_dir, idx
     return None, False, -1
 
 
@@ -241,12 +243,19 @@ def main():
         all_stderr = []
 
         for file_idx, source_file in enumerate(source_files):
-            # Handle /Fo edge case: if /Fo specifies a file (not directory),
-            # only the first source file uses it (cl.exe behavior)
+            # Handle /Fo edge cases
             current_output_args = output_args.copy()
-            if fo_value and not fo_is_directory and file_idx > 0 and fo_index >= 0:
-                # Remove /Fo for subsequent files - they use default naming
-                current_output_args.pop(fo_index)
+            if fo_value is not None and fo_index >= 0:
+                if fo_is_directory:
+                    # /Fo specifies a directory - compute actual output filename
+                    # e.g., /Fo{dir}/ + source.cpp -> /Fo{dir}/source.obj
+                    obj_name = source_file.stem + '.obj'
+                    actual_path = fo_value / obj_name
+                    prefix, _, _ = output_args[fo_index]
+                    current_output_args[fo_index] = (prefix, '', actual_path)
+                elif file_idx > 0:
+                    # /Fo specifies a specific file - only first source uses it
+                    current_output_args.pop(fo_index)
 
             # Create tool and execute
             tool = quicken.cl(tool_args, current_output_args, input_args)
