@@ -1,8 +1,13 @@
 # QuickenCompiler
+Replacements for compilers and other tools using Quicken for caching
+**QuickenCL** - Drop-in replacement for `cl.exe`.
+**QuickenClang** - Drop-in replacement for `clang.exe`. TDB
+**QuickenClangTidy** - Drop-in replacement for  `clang-tidy.exe`. TBD
+**QuickenMoc** - Drop-in replacement for QT `moc.exe`. TBD
 
-**QuickenCL** - Drop-in replacement for `cl.exe` with intelligent caching via [Quicken](../Quicken).
+The following is documentation for CL, as the ohter tools are not made yet. 
 
-## Overview
+# QuickenCL
 
 QuickenCL is a wrapper script that accepts the exact same command-line arguments as `cl.exe` (MSVC compiler) and automatically routes them through Quicken for caching. This provides massive speedups for repeated compilations.
 
@@ -145,11 +150,11 @@ Tests cover:
 - Only works with MSVC `cl.exe` compiler
 - Inherits all limitations from Quicken (see Quicken documentation)
 
-## Contributing
+# Contributing
 
-This is a companion tool to [Quicken](../Quicken). For issues or contributions, please coordinate with the main Quicken project.
+This is a companion tool to Quicken. For issues or contributions, please coordinate with the main Quicken project.
 
-## License
+# License
 
 Same license as Quicken (to be determined).
 
