@@ -209,9 +209,9 @@ def main():
     args = sys.argv[1:]
 
     if not args:
-        print("QuickenCL - cl.exe replacement with caching", file=sys.stderr)
-        print("Usage: QuickenCL [cl.exe arguments]", file=sys.stderr)
-        sys.exit(1)
+        # Pass through to cl.exe for version info (needed by CMake detection)
+        returncode = run_cl_directly(args)
+        sys.exit(returncode)
 
     # Check for /Tc or /Tp - these require direct cl.exe invocation
     # because they embed the filename in the argument itself

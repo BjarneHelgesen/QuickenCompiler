@@ -1,0 +1,14 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "quicken",
+            "generator": "NMake Makefiles",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "${sourceDir}/../dist/QuickenCL.dist/QuickenCL.exe",
+                "CMAKE_CXX_COMPILER_FORCED": "TRUE"
+            }
+        }
+    ]
+}
