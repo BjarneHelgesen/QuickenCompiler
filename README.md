@@ -5,7 +5,7 @@ Replacements for compilers and other tools using Quicken for caching
 * **QuickenClangTidy** - Drop-in replacement for  `clang-tidy.exe`. TBD
 * **QuickenMoc** - Drop-in replacement for QT `moc.exe`. TBD
 
-The following is documentation for CL, as the ohter tools are not made yet. 
+The following is documentation for QuickenCL , as the oter tools are not made yet. 
 
 # QuickenCL
 
