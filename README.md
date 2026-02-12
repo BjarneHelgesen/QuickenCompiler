@@ -81,9 +81,7 @@ set CL=C:\path\to\QuickenCL.exe
 
 ## Configuration
 
-QuickenCL requires a `tools.json` configuration file for Quicken. The file should be in:
-- The same directory as `QuickenCL.py`, OR
-- The current working directory
+QuickenCL requires a `tools.json` configuration file for Quicken. The file should be in the **installation directory** (the same directory as `QuickenCL.exe` or `QuickenCL.py`).
 
 Example `tools.json`:
 

@@ -40,6 +40,44 @@ EXTERNAL_I_PREFIXES = ('/external:I', '-external:I')
 SOURCE_EXTENSIONS = {'.cpp', '.cxx', '.cc', '.c', '.c++'}
 
 
+def find_repo_path(start_path):
+    """Find git repository root by walking up from start_path.
+
+    Args:
+        start_path: Path to start searching from (file or directory)
+
+    Returns:
+        Path to git root, or None if not found
+    """
+    p = Path(start_path).resolve()
+    if p.is_file():
+        p = p.parent
+    for parent in [p] + list(p.parents):
+        if (parent / '.git').exists():
+            return parent
+    return None
+
+
+def find_input_file(args):
+    """Find the first input file path from command-line arguments.
+
+    Looks for arguments that are not flags (don't start with / - @)
+    and exist as files on disk.
+
+    Args:
+        args: List of command-line arguments
+
+    Returns:
+        Path to first input file found, or None
+    """
+    for arg in args:
+        if not arg.startswith('/') and not arg.startswith('-') and not arg.startswith('@'):
+            p = Path(arg)
+            if p.exists() and p.is_file():
+                return p.resolve()
+    return None
+
+
 def parse_cl_arguments(args):
     """
     Parse cl.exe command-line arguments into categories for Quicken.
@@ -229,8 +267,11 @@ def main():
         sys.exit(returncode)
 
     try:
-        # Initialize Quicken with current working directory as repo
-        repo_dir = Path.cwd()
+        # Find git repo from input file path, fall back to CWD
+        input_file = find_input_file(args)
+        repo_dir = find_repo_path(input_file) if input_file else None
+        if repo_dir is None:
+            repo_dir = Path.cwd()
         quicken = Quicken(repo_dir)
 
         # Get /Fo information for handling the edge case:

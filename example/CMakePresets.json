@@ -7,6 +7,8 @@
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_CXX_COMPILER": "${sourceDir}/../dist/QuickenCL.dist/QuickenCL.exe",
+                "CMAKE_CXX_COMPILER_ID": "MSVC",
+                "CMAKE_CXX_COMPILER_VERSION": "19.44",
                 "CMAKE_CXX_COMPILER_FORCED": "TRUE"
             }
         }
