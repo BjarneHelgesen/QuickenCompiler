@@ -2,3 +2,6 @@ dist/
 build/
 **/build/
 __pycache__/
+*.exe
+*.obj
+nul
