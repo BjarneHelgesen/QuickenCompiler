@@ -20,6 +20,12 @@ if exist dist\QuickenCL.dist (
 if exist dist\QuickenCL.build (
     rmdir /s /q dist\QuickenCL.build
 )
+if exist dist\QuickenCleanup.dist (
+    rmdir /s /q dist\QuickenCleanup.dist
+)
+if exist dist\QuickenCleanup.build (
+    rmdir /s /q dist\QuickenCleanup.build
+)
 
 REM Create dist directory if it doesn't exist
 if not exist dist mkdir dist
@@ -49,6 +55,35 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Build QuickenCleanup.exe
+echo Building QuickenCleanup.exe...
+python -m nuitka ^
+    --standalone ^
+    --lto=yes ^
+    --python-flag=no_site ^
+    --python-flag=no_docstrings ^
+    --follow-imports ^
+    --prefer-source-code ^
+    --noinclude-pytest-mode=nofollow ^
+    --noinclude-setuptools-mode=nofollow ^
+    --no-deployment-flag=self-execution ^
+    --output-dir=dist ^
+    --product-name=QuickenCleanup ^
+    --product-version=%VERSION% ^
+    --file-description="Quicken Cache Cleanup Tool" ^
+    --copyright="QuickenCompiler Project" ^
+    -o QuickenCleanup.exe ^
+    QuickenCleanup.py
+
+if errorlevel 1 (
+    echo Build failed for QuickenCleanup.exe
+    exit /b 1
+)
+
+REM Copy QuickenCleanup.exe into the shared QuickenCL distribution folder
+echo Copying QuickenCleanup.exe into shared distribution...
+copy /Y dist\QuickenCleanup.dist\QuickenCleanup.exe dist\QuickenCL.dist\QuickenCleanup.exe >nul
+
 REM Copy tools.json from Quicken repo
 echo Copying tools.json from Quicken...
 copy /Y ..\Quicken\quicken\tools.json dist\QuickenCL.dist\tools.json >nul
@@ -59,7 +94,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo Build complete! Executable is in dist\QuickenCL.dist\QuickenCL.exe
+echo Build complete! Executables are in dist\QuickenCL.dist\
 
 REM Test with CMake example project
 echo.
