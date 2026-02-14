@@ -28,24 +28,22 @@ ChangesEnvironment=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-FinishedLabel=QuickenCL has been installed.%n%nNext steps to configure Quicken:%n%n1. Edit tools.json in the installation directory with your Visual Studio paths%n2. Configure your build system to use QuickenCL.exe instead of cl.exe%n%nNote: If you added QuickenCL to PATH, open a new command prompt to use it.
+FinishedLabel=QuickenCL has been installed.%n%nQuickenToolsConfig will run to auto-detect your Visual Studio installation and configure tools.json.%n%nNote: If you added QuickenCL to PATH, open a new command prompt to use it.
 
 [Tasks]
 Name: "addtopath"; Description: "Add QuickenCL to system PATH"; GroupDescription: "Environment:"; Flags: checkedonce
 
 [Files]
 Source: "dist\QuickenCL.dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Install tools.json only if it doesn't exist (preserve user config on upgrades)
-Source: "..\Quicken\quicken\tools.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
 
 [Icons]
 Name: "{group}\Uninstall QuickenCL"; Filename: "{uninstallexe}"
 
 [Run]
-; Open tools.json in editor on first install so user can configure paths
-Filename: "notepad.exe"; Parameters: """{app}\tools.json"""; \
-  Description: "Configure tools.json with your Visual Studio paths"; \
-  Flags: postinstall shellexec skipifsilent nowait; \
+; Run QuickenToolsConfig to auto-detect Visual Studio and generate tools.json
+Filename: "{app}\QuickenToolsConfig.exe"; \
+  Description: "Auto-detect Visual Studio and configure tools.json"; \
+  Flags: postinstall skipifsilent nowait; \
   Check: IsFirstInstall
 
 [Registry]
@@ -61,13 +59,13 @@ var
   FirstInstallChecked: Boolean;
   FirstInstallResult: Boolean;
 
-// Check if this is a first install (tools.json doesn't exist yet)
+// Check if this is a first install (~/.quicken/tools.json doesn't exist yet)
 // Caches result since the file will be created during install
 function IsFirstInstall(): Boolean;
 begin
   if not FirstInstallChecked then
   begin
-    FirstInstallResult := not FileExists(ExpandConstant('{app}\tools.json'));
+    FirstInstallResult := not FileExists(ExpandConstant('{%USERPROFILE}\.quicken\tools.json'));
     FirstInstallChecked := True;
   end;
   Result := FirstInstallResult;
@@ -201,8 +199,8 @@ begin
     if DirExists(PrevPath) then
     begin
       MsgBox('QuickenCL is already installed at:' + #13#10 + PrevPath + #13#10#13#10 + 'The installer will upgrade this installation.', mbInformation, MB_OK);
-      // Check if tools.json exists in previous install location
-      FirstInstallResult := not FileExists(PrevPath + '\tools.json');
+      // Check if tools.json exists in ~/.quicken/
+      FirstInstallResult := not FileExists(ExpandConstant('{%USERPROFILE}\.quicken\tools.json'));
       FirstInstallChecked := True;
     end
     else
@@ -227,7 +225,7 @@ begin
     Result := Result + MemoDirInfo + NewLine + NewLine;
   if MemoTasksInfo <> '' then
     Result := Result + MemoTasksInfo + NewLine + NewLine;
-  Result := Result + 'After installation, configure Quicken:' + NewLine;
-  Result := Result + Space + '1. Edit tools.json with your Visual Studio paths' + NewLine;
-  Result := Result + Space + '2. Configure your build system to use QuickenCL.exe';
+  Result := Result + 'After installation:' + NewLine;
+  Result := Result + Space + 'QuickenToolsConfig will auto-detect your Visual Studio installation' + NewLine;
+  Result := Result + Space + 'and configure tools.json automatically.';
 end;

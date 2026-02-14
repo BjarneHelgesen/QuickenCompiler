@@ -8,10 +8,10 @@ Example:
 * The Quicken tool will be installed before compiling and running Quicken. 
 * The code for each tool in QuickenCompiler should be absolutely minimal. If possible, each tool should be reduced to a single line. 
 * We will create QuickenCL.py, QuickenClang++.py, QuickenClang-tidy.py, QuickenMoc.py, and others. We will call these "compilers", even if some or them are not strictly in the category of compilers. 
-* We will use PyInstaller or Nuitka to create .exe files (e.g. QuickenCL.exe) from the compiler python sources. E.g. "pyinstaller --onefile --name QuickenCL QuickenCL.py"
-* The compilers will be put in the same folder and share any python run-time, etc. 
+* We will use PyInstaller or Nuitka to create .exe files (e.g. QuickenCL.exe) from the compiler python sources.
+* The compilers will be put in the same folder and share any python run-time, etc.
 * Suggested parameters
-  nuitka --standalone --onefile \
+  nuitka --standalone \
          --enable-plugin=numpy \
          --follow-imports \
          --prefer-source-code \
@@ -22,7 +22,7 @@ QuickenCL is a wrapper script that accepts the exact same command-line arguments
 
 1. Clone this repository
 2. Ensure Quicken is available (either installed via pip or located in sibling directory)
-3. Create a `tools.json` configuration file (see Configuration section)
+3. Run `QuickenToolsConfig.py` to auto-detect Visual Studio and generate `~/.quicken/tools.json`
 
 ## Usage
 
@@ -38,7 +38,7 @@ Use QuickenCL exactly like you would use `cl.exe`:
 
 ## Configuration
 
-QuickenCL requires a `tools.json` configuration file for Quicken. Documentation for the format is in the Quicken repo. 
+QuickenCL requires `~/.quicken/tools.json`. Run `QuickenToolsConfig.exe` to auto-detect Visual Studio and generate it, or see the Quicken repo for the format.
 
 ## Testing
 pytest is used for unit tests. 

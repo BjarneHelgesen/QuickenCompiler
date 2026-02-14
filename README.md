@@ -31,7 +31,7 @@ QuickenCL is a wrapper script that accepts the exact same command-line arguments
 
 1. Clone this repository
 2. Ensure Quicken is available (either installed via pip or located in sibling directory)
-3. Create a `tools.json` configuration file (see Configuration section)
+3. Run `QuickenToolsConfig.py` to auto-detect Visual Studio and generate `~/.quicken/tools.json`
 
 ## Usage
 
@@ -81,9 +81,9 @@ set CL=C:\path\to\QuickenCL.exe
 
 ## Configuration
 
-QuickenCL requires a `tools.json` configuration file for Quicken. The file should be in the **installation directory** (the same directory as `QuickenCL.exe` or `QuickenCL.py`).
+QuickenCL requires a `tools.json` configuration file at `~/.quicken/tools.json`. Run `QuickenToolsConfig.exe` (or `python QuickenToolsConfig.py`) to auto-detect Visual Studio and generate it automatically.
 
-Example `tools.json`:
+Example `~/.quicken/tools.json`:
 
 ```json
 {
@@ -144,7 +144,7 @@ Tests cover:
 
 ## Limitations
 
-- Requires `tools.json` configuration file
+- Requires `~/.quicken/tools.json` configuration file
 - Only works with MSVC `cl.exe` compiler
 - Inherits all limitations from Quicken (see Quicken documentation)
 

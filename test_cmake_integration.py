@@ -9,7 +9,7 @@ import pytest
 REPO_DIR = Path(__file__).parent
 EXAMPLE_DIR = REPO_DIR / "example"
 BUILD_DIR = EXAMPLE_DIR / "build"
-TOOLS_JSON = REPO_DIR / "dist" / "QuickenCL.dist" / "tools.json"
+TOOLS_JSON = Path.home() / ".quicken" / "tools.json"
 
 
 def get_msvc_env():
