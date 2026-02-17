@@ -42,34 +42,20 @@ Name: "{group}\Uninstall QuickenCL"; Filename: "{uninstallexe}"
 [Run]
 ; Run QuickenToolsConfig to auto-detect Visual Studio and generate tools.json
 Filename: "{app}\QuickenToolsConfig.exe"; \
-  Description: "Auto-detect Visual Studio and configure tools.json"; \
-  Flags: postinstall skipifsilent nowait; \
-  Check: IsFirstInstall
+  Description: "Configure tool paths (Visual Studio auto-detection)"; \
+  Flags: postinstall skipifsilent nowait
 
 [Registry]
 ; Store install path for tools that need to find QuickenCL
 Root: HKLM; Subkey: "Software\QuickenCL"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 
 [Code]
+var
+  PreviousInstallPath: String;
+
 const
   EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
   UserEnvironmentKey = 'Environment';
-
-var
-  FirstInstallChecked: Boolean;
-  FirstInstallResult: Boolean;
-
-// Check if this is a first install (~/.quicken/tools.json doesn't exist yet)
-// Caches result since the file will be created during install
-function IsFirstInstall(): Boolean;
-begin
-  if not FirstInstallChecked then
-  begin
-    FirstInstallResult := not FileExists(ExpandConstant('{%USERPROFILE}\.quicken\tools.json'));
-    FirstInstallChecked := True;
-  end;
-  Result := FirstInstallResult;
-end;
 
 // Check if AppDir is a complete entry in semicolon-delimited Path string
 function IsInPath(const Path, AppDir: String): Boolean;
@@ -193,34 +179,20 @@ var
   PrevPath: String;
 begin
   Result := True;
+  PreviousInstallPath := '';
   // Check for previous installation
   if RegQueryStringValue(HKLM, 'Software\QuickenCL', 'InstallPath', PrevPath) then
   begin
     if DirExists(PrevPath) then
-    begin
-      MsgBox('QuickenCL is already installed at:' + #13#10 + PrevPath + #13#10#13#10 + 'The installer will upgrade this installation.', mbInformation, MB_OK);
-      // Check if tools.json exists in ~/.quicken/
-      FirstInstallResult := not FileExists(ExpandConstant('{%USERPROFILE}\.quicken\tools.json'));
-      FirstInstallChecked := True;
-    end
-    else
-    begin
-      // Registry exists but directory doesn't - treat as first install
-      FirstInstallResult := True;
-      FirstInstallChecked := True;
-    end;
-  end
-  else
-  begin
-    // No previous installation - definitely first install
-    FirstInstallResult := True;
-    FirstInstallChecked := True;
+      PreviousInstallPath := PrevPath;
   end;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 begin
   Result := '';
+  if PreviousInstallPath <> '' then
+    Result := Result + 'Upgrading existing installation at:' + NewLine + Space + PreviousInstallPath + NewLine + NewLine;
   if MemoDirInfo <> '' then
     Result := Result + MemoDirInfo + NewLine + NewLine;
   if MemoTasksInfo <> '' then
