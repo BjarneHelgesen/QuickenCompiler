@@ -159,10 +159,31 @@ begin
   end;
 end;
 
+procedure UnblockExecutables();
+var
+  FindRec: TFindRec;
+  AppDir: String;
+  Cmd: String;
+  ResultCode: Integer;
+begin
+  AppDir := ExpandConstant('{app}');
+  // Unblock all .exe files so Windows SmartScreen does not block them
+  if FindFirst(AppDir + '\*.exe', FindRec) then
+  try
+    repeat
+      Cmd := '-NoProfile -Command "Unblock-File -LiteralPath ''' + AppDir + '\' + FindRec.Name + '''"';
+      Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    UnblockExecutables();
     if WizardIsTaskSelected('addtopath') then
       AddToPath();
   end;
