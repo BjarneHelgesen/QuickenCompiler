@@ -40,10 +40,11 @@ Source: "dist\QuickenCL.dist\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 Name: "{group}\Uninstall QuickenCL"; Filename: "{uninstallexe}"
 
 [Run]
-; Run QuickenToolsConfig to auto-detect Visual Studio and generate tools.json
-Filename: "{app}\QuickenToolsConfig.exe"; \
+; Run QuickenToolsConfig via a diagnostic wrapper that logs stdout/stderr.
+; The wrapper batch file is created by CreateToolsConfigWrapper() in [Code].
+Filename: "{app}\RunToolsConfig.bat"; \
   Description: "Configure tool paths (Visual Studio auto-detection)"; \
-  Flags: postinstall skipifsilent nowait
+  Flags: postinstall skipifsilent
 
 [Registry]
 ; Store install path for tools that need to find QuickenCL
@@ -167,11 +168,22 @@ var
   ResultCode: Integer;
 begin
   AppDir := ExpandConstant('{app}');
-  // Unblock all .exe files so Windows SmartScreen does not block them
+  // Unblock all .exe and .dll files so Windows SmartScreen does not block them
+  // Use Remove-Item on the Zone.Identifier ADS (more reliable than Unblock-File
+  // which may be unavailable depending on PowerShell execution policy)
   if FindFirst(AppDir + '\*.exe', FindRec) then
   try
     repeat
-      Cmd := '-NoProfile -Command "Unblock-File -LiteralPath ''' + AppDir + '\' + FindRec.Name + '''"';
+      Cmd := '-NoProfile -Command "Remove-Item -LiteralPath ''' + AppDir + '\' + FindRec.Name + ':Zone.Identifier'' -Force -ErrorAction SilentlyContinue"';
+      Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+  if FindFirst(AppDir + '\*.dll', FindRec) then
+  try
+    repeat
+      Cmd := '-NoProfile -Command "Remove-Item -LiteralPath ''' + AppDir + '\' + FindRec.Name + ':Zone.Identifier'' -Force -ErrorAction SilentlyContinue"';
       Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     until not FindNext(FindRec);
   finally
@@ -179,11 +191,61 @@ begin
   end;
 end;
 
+procedure CreateToolsConfigWrapper();
+var
+  AppDir: String;
+  BatContent: String;
+begin
+  AppDir := ExpandConstant('{app}');
+  // Create a batch wrapper that logs stdout/stderr and exit code
+  BatContent :=
+    '@echo off' + #13#10 +
+    'setlocal' + #13#10 +
+    'set "LOGFILE=%~dp0toolsconfig.log"' + #13#10 +
+    'echo ============================================ > "%LOGFILE%"' + #13#10 +
+    'echo QuickenToolsConfig diagnostic log >> "%LOGFILE%"' + #13#10 +
+    'echo Date: %DATE% %TIME% >> "%LOGFILE%"' + #13#10 +
+    'echo Working dir: %CD% >> "%LOGFILE%"' + #13#10 +
+    'echo App dir: %~dp0 >> "%LOGFILE%"' + #13#10 +
+    'echo ============================================ >> "%LOGFILE%"' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'echo --- Checking Zone.Identifier on QuickenToolsConfig.exe --- >> "%LOGFILE%"' + #13#10 +
+    'more < "%~dp0QuickenToolsConfig.exe:Zone.Identifier" >> "%LOGFILE%" 2>&1' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'echo --- Checking if exe exists --- >> "%LOGFILE%"' + #13#10 +
+    'if exist "%~dp0QuickenToolsConfig.exe" (' + #13#10 +
+    '    echo QuickenToolsConfig.exe FOUND >> "%LOGFILE%"' + #13#10 +
+    ') else (' + #13#10 +
+    '    echo QuickenToolsConfig.exe NOT FOUND >> "%LOGFILE%"' + #13#10 +
+    ')' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'echo --- Listing DLLs in app dir --- >> "%LOGFILE%"' + #13#10 +
+    'dir /b "%~dp0*.dll" >> "%LOGFILE%" 2>&1' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'echo --- Running QuickenToolsConfig.exe --- >> "%LOGFILE%"' + #13#10 +
+    'echo Running: "%~dp0QuickenToolsConfig.exe" >> "%LOGFILE%"' + #13#10 +
+    '"%~dp0QuickenToolsConfig.exe" >> "%LOGFILE%" 2>&1' + #13#10 +
+    'set EXITCODE=%ERRORLEVEL%' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'echo --- Exit code: %EXITCODE% --- >> "%LOGFILE%"' + #13#10 +
+    'echo. >> "%LOGFILE%"' + #13#10 +
+    'if not "%EXITCODE%"=="0" (' + #13#10 +
+    '    echo QuickenToolsConfig failed with exit code %EXITCODE%. >> "%LOGFILE%"' + #13#10 +
+    '    echo See log file: %LOGFILE%' + #13#10 +
+    '    notepad "%LOGFILE%"' + #13#10 +
+    ') else (' + #13#10 +
+    '    echo QuickenToolsConfig completed successfully.' + #13#10 +
+    ')' + #13#10 +
+    'exit /b %EXITCODE%' + #13#10;
+  SaveStringToFile(AppDir + '\RunToolsConfig.bat', BatContent, False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
     UnblockExecutables();
+    CreateToolsConfigWrapper();
     if WizardIsTaskSelected('addtopath') then
       AddToPath();
   end;
